@@ -2,7 +2,7 @@
 
 #include <iostream>
 
-class SafeStoiDecorator
+class StoiDecorator
 {
 public:
     int operator()(const std::string &str);

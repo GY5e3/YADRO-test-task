@@ -2,7 +2,7 @@
 
 #include <iostream>
 
-#include "SafeStoiDecorator.hpp"
+#include "StoiDecorator.hpp"
 
 class Time
 {

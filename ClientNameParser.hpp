@@ -2,5 +2,5 @@
 
 class ClientNameParser {
 public:
-    bool operator()(const std::string&);
+    std::string operator()(const std::string&);
 };

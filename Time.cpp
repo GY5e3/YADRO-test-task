@@ -39,7 +39,7 @@ void Time::StringToTime(std::string data)
 {
     if (data.length() != 5 || data[2] != ':')
         throw std::invalid_argument("Can`t be converted from string to Time");
-    SafeStoiDecorator safeStoi;
+    StoiDecorator safeStoi;
     p_hours = safeStoi(data.substr(0, 2));
     if (p_hours < 0 || p_hours > 23)
         throw std::invalid_argument("Hours must be in the range from 0 to 23");

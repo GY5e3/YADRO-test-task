@@ -1,6 +1,6 @@
-#include "SafeStoiDecorator.hpp"
+#include "StoiDecorator.hpp"
 
-int SafeStoiDecorator::operator()(const std::string &str)
+int StoiDecorator::operator()(const std::string &str)
 {
     int skipInsignificantZeros = 0;
     while (str[skipInsignificantZeros] == '0' && skipInsignificantZeros < str.length() - 1)
