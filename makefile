@@ -1,2 +1,2 @@
-task: main.cpp
-	g++ -o task main.cpp StoiDecorator.cpp Time.cpp GameTable.cpp ClientNameParser.cpp
+task: Core/main.cpp
+	g++ -o task Core/*.cpp
