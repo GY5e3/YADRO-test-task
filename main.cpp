@@ -3,6 +3,7 @@
 #include <vector>
 #include <sstream>
 #include <unordered_map>
+#include <queue>
 
 #include "GameTable.hpp"
 #include "Time.hpp"
@@ -11,6 +12,18 @@
 
 const int LOG_HEADER_END = 4;
 const int MIN_LOG_LINE_LENGTH = 3;
+
+struct ClientSession
+{
+public:
+    int gameTableNumber;
+    Time startSessionTime;
+
+    ClientSession(): gameTableNumber(-1) {}
+
+    ClientSession(int gameTableNumber, Time startSessionTime) : gameTableNumber(gameTableNumber),
+                                                                startSessionTime(startSessionTime) {}
+};
 
 enum IncomingEventID
 {
@@ -25,10 +38,36 @@ enum OutgoingEventID
     ClientFromQueueTakeGameTable = 12,
     EventError = 13
 };
+
+void StartGameSession(std::unordered_map<std::string, ClientSession> &mappingClientSession,
+                      const std::string &currentClient,
+                      const int& currentGameTable,
+                      Time &currentTime,
+                      std::vector<GameTable> &gameTables,
+                      int &freeGameTablesCount)
+{
+    mappingClientSession[currentClient].gameTableNumber = currentGameTable;
+    mappingClientSession[currentClient].startSessionTime = currentTime;
+    gameTables[currentGameTable].AddClient(currentClient);
+    freeGameTablesCount--;
+}
+
+void EndGameSession(std::unordered_map<std::string, ClientSession> &mappingClientSession,
+                    const std::string &currentClient,
+                    Time &currentTime,
+                    std::vector<GameTable> &gameTables,
+                    int &freeGameTablesCount)
+{
+    int index = mappingClientSession[currentClient].gameTableNumber;
+    gameTables[index].AddDeltaTimeAndProfit(
+        currentTime - mappingClientSession[currentClient].startSessionTime);
+    gameTables[index].RemoveClient();
+    mappingClientSession[currentClient].gameTableNumber = -1;
+    freeGameTablesCount++;
+}
 // TODO: Для более удобного тестирования вынести основной функционал с парсингом в отдельный класс
 //      в функцию передается по ссылке строка, в которую запишется весь лог с входящими и исходящими событиями
 //      сама функция вернет код завершения програмы
-// TODO: возможно, стоит загнать весь код в большой try-catch блок
 int main(int argc, char const *argv[])
 {
     if (argc < 2)
@@ -54,7 +93,8 @@ int main(int argc, char const *argv[])
     std::vector<GameTable> gameTables; // Здесь будем хранить информацию обо всех столах
 
     int freeGameTablesCount;
-    std::unordered_map<std::string, std::pair<int, Time>> clientGameTableMapping;
+    std::unordered_map<std::string, ClientSession> mappingClientSession;
+    std::queue<std::string> queueClients;
 
     std::string line; // Буферная переменная для хранения текущей строки в логе
     try
@@ -63,7 +103,6 @@ int main(int argc, char const *argv[])
         std::getline(file, line);
         logLinesCounter++;
         gameTablesCount = safe_stoi(line);
-        gameTables.resize(gameTablesCount);
         freeGameTablesCount = gameTablesCount;
 
         // TODO: здесь надо обязательно распрасить по пробелам, иначе может пройти ошибочный тест типа: 00:01000:02
@@ -82,6 +121,7 @@ int main(int argc, char const *argv[])
         std::getline(file, line);
         logLinesCounter++;
         pricePerHour = safe_stoi(line);
+        gameTables.resize(gameTablesCount, GameTable(pricePerHour));
 
         std::cout << workTimeBegin.GetString() << std::endl;
 
@@ -119,20 +159,20 @@ int main(int argc, char const *argv[])
                               << " NotOpenYet" << std::endl;
                     break;
                 }
-                if (clientGameTableMapping.find(currentClient) != clientGameTableMapping.end())
+                if (mappingClientSession.find(currentClient) != mappingClientSession.end())
                 {
                     std::cout << currentTime.GetString() + " " << OutgoingEventID::EventError
                               << " YouShallNotPass" << std::endl;
                     break;
                 }
-                clientGameTableMapping[currentClient].first = -1;
+                mappingClientSession[currentClient].gameTableNumber = -1;
                 break;
             case IncomingEventID::ClientTakeGameTable:
                 currentGameTable = safe_stoi(tokens[3]) - 1;
                 if (currentGameTable < 0 || currentGameTable >= gameTablesCount)
                     throw std::invalid_argument("Table " + std::to_string(currentGameTable + 1) +
                                                 " does not exist");
-                if (clientGameTableMapping.find(currentClient) == clientGameTableMapping.end())
+                if (mappingClientSession.find(currentClient) == mappingClientSession.end())
                 {
                     std::cout << currentTime.GetString() + " " << OutgoingEventID::EventError
                               << " ClientUnknown" << std::endl;
@@ -144,29 +184,77 @@ int main(int argc, char const *argv[])
                               << " PlaceIsBusy" << std::endl;
                     break;
                 }
-                
-                if(clientGameTableMapping[currentClient].first != -1) {
-                    int index = clientGameTableMapping[currentClient].first;
-                    gameTables[index].AddDeltaTimeAndProfit(currentTime - clientGameTableMapping[currentClient].second);
-                    gameTables[index].RemoveClient();
-
+                if (mappingClientSession[currentClient].gameTableNumber != -1)
+                {
+                    EndGameSession(mappingClientSession, currentClient, currentTime, gameTables, freeGameTablesCount);
                 }
-                clientGameTableMapping[currentClient].first = currentGameTable;
-                clientGameTableMapping[currentClient].second = currentTime;
-                gameTables[currentGameTable].AddClient(currentClient);
+                StartGameSession(mappingClientSession, currentClient, currentGameTable, currentTime, gameTables, freeGameTablesCount);
                 break;
             case IncomingEventID::ClientIsWaiting:
-
-                //TODO: если клиент уже сидит за столом то он не может ожидать
-                /* code */
+                // В ТЗ это явно не прописано, но могу предположить, что если клиент не вошёл в клуб, то и ожидать он не может
+                if (mappingClientSession.find(currentClient) == mappingClientSession.end())
+                {
+                    std::cout << currentTime.GetString() + " " << OutgoingEventID::EventError
+                              << " ClientUnknown" << std::endl;
+                    break;
+                }
+                // Опять же в ТЗ не прописано, как должна вести себя программа,
+                // если клиент уже занял стол, поэтому я добавил обработку этого условия сюда
+                if (freeGameTablesCount > 0 || mappingClientSession[currentClient].gameTableNumber != -1)
+                {
+                    std::cout << currentTime.GetString() + " " << OutgoingEventID::EventError
+                              << " ICanWaitNoLonger!" << std::endl;
+                    break;
+                }
+                if (queueClients.size() > gameTablesCount)
+                {
+                    std::cout << currentTime.GetString() + " " << OutgoingEventID::ClientHasLeftForced
+                              << " " + currentClient << std::endl;
+                    mappingClientSession.erase(currentClient);
+                    break;
+                }
+                queueClients.push(currentClient);
                 break;
             case IncomingEventID::ClientHasLeft:
-                /* code */
+                if (mappingClientSession.find(currentClient) == mappingClientSession.end())
+                {
+                    std::cout << currentTime.GetString() + " " << OutgoingEventID::EventError
+                              << " ClientUnknown" << std::endl;
+                    break;
+                }
+                currentGameTable = mappingClientSession[currentClient].gameTableNumber;
+
+                EndGameSession(mappingClientSession, currentClient, currentTime, gameTables, freeGameTablesCount);
+
+                mappingClientSession.erase(currentClient);
+
+                if (queueClients.size() > 0)
+                {
+                    currentClient = queueClients.front();
+                    queueClients.pop();
+        
+                    StartGameSession(mappingClientSession, currentClient, currentGameTable, currentTime, gameTables, freeGameTablesCount);
+
+                    std::cout << currentTime.GetString() + " " << OutgoingEventID::ClientFromQueueTakeGameTable
+                              << " " + currentClient + " " + std::to_string(currentGameTable + 1) << std::endl;
+                }
+
                 break;
             default:
+                throw std::invalid_argument("The event does not exist");
                 break;
             }
             previousTime = currentTime;
+        }
+        
+        std::cout << workTimeEnd.GetString() << std::endl;
+
+        for(auto lastClient : mappingClientSession) {
+            EndGameSession(mappingClientSession, lastClient.first, workTimeEnd, gameTables, freeGameTablesCount);
+        }
+
+        for(auto gameTable : gameTables) {
+            std::cout << gameTable.GetString() << std::endl;
         }
     }
     catch (const std::invalid_argument &e)
@@ -174,11 +262,11 @@ int main(int argc, char const *argv[])
         std::cerr << "Line " + std::to_string(logLinesCounter) + ": " + e.what() << std::endl;
         if (logLinesCounter == 2)
             std::cerr << "\nIt must look like: \"<HH:MM> <HH:MM>\"" << std::endl;
+
         return 1;
     }
 
-    // TODO: всё парсить по пробелам не то пизда на тестах
-    // TODO: Логика для обработки строк лога
+
     // TODO: Как обрабатывать случаи, когда предыдущий клиент пришел после закрытия, а текущий - в рабочие часы?
     //       будем считать это ошибкой сортировки и будем заканчивать работу программы
 

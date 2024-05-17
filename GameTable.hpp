@@ -9,7 +9,7 @@ class GameTable
 public:
     int pricePerHour;
 
-    GameTable();
+    GameTable(int);
     std::string GetString();
     void AddDeltaTimeAndProfit(Time);
     void AddClient(const std::string &);

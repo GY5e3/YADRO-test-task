@@ -1,6 +1,9 @@
 #include "GameTable.hpp"
 
-GameTable::GameTable() : p_profit(0), p_isBusy(false), p_client("") {}
+GameTable::GameTable(int pricePerHour) : p_profit(0),
+                                         p_isBusy(false),
+                                         p_client(""),
+                                         pricePerHour(pricePerHour) {}
 
 std::string GameTable::GetString()
 {
@@ -10,7 +13,7 @@ std::string GameTable::GetString()
 void GameTable::AddDeltaTimeAndProfit(Time deltaTime)
 {
     p_busyTime = p_busyTime + deltaTime;
-    p_profit = (deltaTime.GetHours() + (deltaTime.GetMinutes() > 0)) * pricePerHour;
+    p_profit += (deltaTime.GetHours() + (deltaTime.GetMinutes() > 0)) * pricePerHour;
 }
 
 void GameTable::AddClient(const std::string &client)
