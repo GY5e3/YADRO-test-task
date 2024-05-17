@@ -4,6 +4,7 @@
 #include <sstream>
 #include <unordered_map>
 #include <queue>
+#include <algorithm>
 
 #include "GameTable.hpp"
 #include "Time.hpp"

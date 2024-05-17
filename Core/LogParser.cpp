@@ -35,15 +35,29 @@ int LogParser::Execute() {
 
             parseEvent(tokens);
         }
-        std::cout << p_workTimeEnd.GetString() << std::endl;
+        
 
+        std::vector<std::string> lastClients;
         for (const auto &lastClient : p_clientInfo) {
+            lastClients.push_back(lastClient.first);
             endGameSession(lastClient.first, p_workTimeEnd);
         }
+        while(p_queueClients.size() > 0) {
+            lastClients.push_back(p_queueClients.front());
+            p_queueClients.pop();
+        }
+        std::sort(lastClients.begin(), lastClients.end());
+        for(const auto i : lastClients) {
+            std::cout << p_workTimeEnd.GetString() + " " << OutgoingEventID::ClientHasLeftForced << " " + i << std::endl;
+        }
 
-        for (size_t i = 0; i < p_gameTables.size(); ++i) {
+        std::cout << p_workTimeEnd.GetString() << std::endl;
+
+        for (size_t i = 0; i < p_gameTables.size(); i++) {
             std::cout << i + 1 << " " << p_gameTables[i].GetString() << std::endl;
         }
+        
+
     } catch (const std::invalid_argument &e) {
         std::cerr << "Line " + std::to_string(p_logLinesCounter) + ": " + e.what() << std::endl;
         return 1;
