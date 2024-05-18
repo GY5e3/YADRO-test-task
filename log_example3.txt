@@ -1,0 +1,18 @@
+2
+10:00 20:00
+150
+10:15 1 qwerty
+10:20 1 tool
+10:25 2 qwerty 1
+10:30 2 tool 2
+10:40 1 lucky
+10:45 1 porky
+10:46 1 churl
+10:46 2 churl 2
+10:47 3 porky
+10:48 3 lucky
+10:49 3 churl
+10:55 1 unlucky
+11:00 3 unlucky
+11:49 4 churl
+12:15 4 qwerty

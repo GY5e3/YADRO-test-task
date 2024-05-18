@@ -4,9 +4,14 @@ LogParser::LogParser() : p_file(""), p_logLinesCounter(0) {}
 
 LogParser::LogParser(const std::string &filename) : p_file(filename), p_logLinesCounter(0)
 {
-    if (!p_file.is_open())
+    try
     {
-        throw std::runtime_error("File could not be opened");
+        if (!p_file.is_open())
+            throw std::runtime_error("File could not be opened");
+    }
+    catch (const std::runtime_error &e)
+    {
+        std::cout << e.what() << std::endl;
     }
 }
 
@@ -24,7 +29,7 @@ int LogParser::Execute()
         for (const auto &lastClient : p_clientInfo)
         {
             lastClients.push_back(lastClient.first);
-            if(p_clientInfo[lastClient.first].gameTableNumber != GAME_TABLE_IS_UNDEFINED)
+            if (p_clientInfo[lastClient.first].gameTableNumber != GAME_TABLE_IS_UNDEFINED)
                 endGameSession(lastClient.first, p_workTimeEnd);
 
             p_queueClients.remove(lastClient.first);
@@ -71,17 +76,18 @@ void LogParser::endGameSession(const std::string &currentClient, Time &currentTi
     p_clientInfo[currentClient].gameTableNumber = GAME_TABLE_IS_UNDEFINED;
     p_freeGameTablesCount++;
 }
-
+// Обработка заголовка лога
 void LogParser::parseHeader()
 {
     std::string line;
 
+    // Получение количества игровых столов в компьютерном клубе
     std::getline(p_file, line);
     p_logLinesCounter++;
-
     int gameTablesCount = stoi_decorator(line);
     p_freeGameTablesCount = gameTablesCount;
 
+    // Получение времени открытия и закрытия компьютерного клуба
     std::getline(p_file, line);
     p_logLinesCounter++;
     std::istringstream iss(line);
@@ -102,12 +108,14 @@ void LogParser::parseHeader()
         throw std::invalid_argument("WorkTimeEnd can't be less than workTimeBegin");
     }
 
+    // Получение стоимости за час игры в компьютерном клубе
     std::getline(p_file, line);
     p_logLinesCounter++;
     int pricePerHour = stoi_decorator(line);
     p_gameTables.resize(gameTablesCount, GameTable(pricePerHour));
 }
 
+// Обработка тела лога
 void LogParser::parseBody()
 {
     std::string line;
@@ -132,19 +140,17 @@ void LogParser::parseBody()
     }
 }
 
+// Определения типа события, к которому относится строка лога
 void LogParser::parseEvent(const std::vector<std::string> &tokens, Time &previousTime)
 {
     if (tokens.size() < MIN_LOG_LINE_ARGUMENTS || tokens.size() > MAX_LOG_LINE_ARGUMENTS)
         throw std::invalid_argument("Incorrect log line format");
 
     Time currentTime;
-    int currentEvent;
-    std::string currentClient;
-    int currentGameTable = GAME_TABLE_IS_UNDEFINED;
-
     currentTime.StringToTime(tokens[0]);
-    currentEvent = stoi_decorator(tokens[1]);
-    currentClient = name_parser(tokens[2]);
+    int currentEvent = stoi_decorator(tokens[1]);
+    std::string currentClient = name_parser(tokens[2]);
+    int currentGameTable = GAME_TABLE_IS_UNDEFINED;
 
     if (p_logLinesCounter > LOG_HEADER_END && currentTime < previousTime)
         throw std::invalid_argument("Unsorted lines in the log");
@@ -169,6 +175,7 @@ void LogParser::parseEvent(const std::vector<std::string> &tokens, Time &previou
     previousTime = currentTime;
 }
 
+// ID 1. Клиент пришёл
 void LogParser::handleClientHasCome(const std::string &currentClient, Time &currentTime)
 {
     if (currentTime < p_workTimeBegin || p_workTimeEnd < currentTime)
@@ -184,18 +191,18 @@ void LogParser::handleClientHasCome(const std::string &currentClient, Time &curr
     p_clientInfo[currentClient].gameTableNumber = GAME_TABLE_IS_UNDEFINED;
 }
 
-void LogParser::handleClientTakeGameTable(const std::vector<std::string> &tokens, const std::string &currentClient, Time &currentTime)
+// ID 2. Клиент сел за стол
+void LogParser::handleClientTakeGameTable(const std::vector<std::string> &tokens,
+                                          const std::string &currentClient,
+                                          Time &currentTime)
 {
     if (tokens.size() != 4)
-    {
         throw std::invalid_argument("Incorrect log line format");
-    }
-    int currentGameTable = stoi_decorator(tokens[3]) - 1;
 
+    int currentGameTable = stoi_decorator(tokens[3]) - 1;
     if (currentGameTable < 0 || currentGameTable >= p_gameTables.size())
-    {
         throw std::invalid_argument("Table " + std::to_string(currentGameTable + 1) + " does not exist");
-    }
+
     if (p_clientInfo.find(currentClient) == p_clientInfo.end())
     {
         std::cout << currentTime.GetString() + " " << OutgoingEventID::EventError << " ClientUnknown" << std::endl;
@@ -206,20 +213,23 @@ void LogParser::handleClientTakeGameTable(const std::vector<std::string> &tokens
         std::cout << currentTime.GetString() + " " << OutgoingEventID::EventError << " PlaceIsBusy" << std::endl;
         return;
     }
+    //Закончили предыдущую игровую сессию, если таковая была
     if (p_clientInfo[currentClient].gameTableNumber != GAME_TABLE_IS_UNDEFINED)
-    {
         endGameSession(currentClient, currentTime);
-    }
+
     startGameSession(currentClient, currentGameTable, currentTime);
 }
 
+//ID 3. Клиент ожидает
 void LogParser::handleClientIsWaiting(const std::string &currentClient, Time &currentTime)
 {
+    // В ТЗ это явно не прописано, но могу предположить, что если клиент не вошёл в клуб, то и ожидать он не может
     if (p_clientInfo.find(currentClient) == p_clientInfo.end())
     {
         std::cout << currentTime.GetString() + " " << OutgoingEventID::EventError << " ClientUnknown" << std::endl;
         return;
     }
+    // Опять же в ТЗ не прописано, как должна вести себя программа, если клиент уже занял стол, поэтому я добавил обработку этого условия сюда
     if (p_freeGameTablesCount > 0 || p_clientInfo[currentClient].gameTableNumber != GAME_TABLE_IS_UNDEFINED)
     {
         std::cout << currentTime.GetString() + " " << OutgoingEventID::EventError << " ICanWaitNoLonger!" << std::endl;
@@ -234,6 +244,7 @@ void LogParser::handleClientIsWaiting(const std::string &currentClient, Time &cu
     p_queueClients.push(currentClient);
 }
 
+//ID 4. Клиент ушёл
 void LogParser::handleClientHasLeft(const std::string &currentClient, Time &currentTime)
 {
     if (p_clientInfo.find(currentClient) == p_clientInfo.end())
@@ -247,9 +258,6 @@ void LogParser::handleClientHasLeft(const std::string &currentClient, Time &curr
     if (currentGameTable != GAME_TABLE_IS_UNDEFINED)
     {
         endGameSession(currentClient, currentTime);
-        p_clientInfo.erase(currentClient);
-        p_queueClients.remove(currentClient);
-
         if (!p_queueClients.empty())
         {
             std::string nextClient = p_queueClients.front();
@@ -259,4 +267,6 @@ void LogParser::handleClientHasLeft(const std::string &currentClient, Time &curr
             std::cout << currentTime.GetString() + " " << OutgoingEventID::ClientFromQueueTakeGameTable << " " + nextClient + " " + std::to_string(currentGameTable + 1) << std::endl;
         }
     }
+    p_clientInfo.erase(currentClient);
+    p_queueClients.remove(currentClient);
 }
