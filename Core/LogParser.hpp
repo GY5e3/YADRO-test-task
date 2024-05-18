@@ -1,3 +1,5 @@
+#pragma once
+
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -11,11 +13,14 @@
 #include "StoiDecorator.hpp"
 #include "ClientNameParser.hpp"
 
+//#include "../Test/Unit/LogParserTest.hpp"
+
+
+
 const int GAME_TABLE_IS_UNDEFINED = -1;
 const int LOG_HEADER_END = 4;
 const int MIN_LOG_LINE_ARGUMENTS = 3;
 const int MAX_LOG_LINE_ARGUMENTS = 4;
-
 
 struct ClientSession
 {
@@ -43,10 +48,14 @@ enum OutgoingEventID
     EventError = 13
 };
 
-
-class LogParser {
+class LogParser
+{
 public:
+    friend class LogParserTest;
+
+    LogParser();
     LogParser(const std::string &filename);
+
     int Execute();
 
 private:
@@ -58,7 +67,7 @@ private:
     void handleClientTakeGameTable(const std::vector<std::string> &tokens, const std::string &currentClient, Time &currentTime);
     void handleClientIsWaiting(const std::string &currentClient, Time &currentTime);
     void handleClientHasLeft(const std::string &currentClient, Time &currentTime);
-    
+
     std::ifstream p_file;
     int p_logLinesCounter;
     int p_gameTablesCount;
@@ -68,7 +77,9 @@ private:
     int p_freeGameTablesCount;
     std::unordered_map<std::string, ClientSession> p_clientInfo;
     std::queue<std::string> p_queueClients;
-    
+
     StoiDecorator stoi_decorator;
     ClientNameParser name_parser;
+
+    
 };
