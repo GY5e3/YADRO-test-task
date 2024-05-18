@@ -12,6 +12,7 @@
 #include "Time.hpp"
 #include "StoiDecorator.hpp"
 #include "ClientNameParser.hpp"
+#include "FastQueue.hpp"
 
 //#include "../Test/Unit/LogParserTest.hpp"
 
@@ -78,7 +79,7 @@ private:
     std::vector<GameTable> p_gameTables; //Перечень всех игровых столов
     int p_freeGameTablesCount;           //Количество незанятых игровых столов
     std::unordered_map<std::string, ClientSession> p_clientInfo; //Отображение для клиента и данных о его игровой сессии
-    std::queue<std::string> p_queueClients; // Очередь клиентов, ожидающих освобождения любого игрового стола
+    FastQueue p_queueClients; // Очередь клиентов, ожидающих освобождения любого игрового стола
 
     StoiDecorator stoi_decorator; 
     ClientNameParser name_parser;

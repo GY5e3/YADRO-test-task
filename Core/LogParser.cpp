@@ -26,6 +26,8 @@ int LogParser::Execute()
             lastClients.push_back(lastClient.first);
             if(p_clientInfo[lastClient.first].gameTableNumber != GAME_TABLE_IS_UNDEFINED)
                 endGameSession(lastClient.first, p_workTimeEnd);
+
+            p_queueClients.remove(lastClient.first);
         }
         while (p_queueClients.size() > 0)
         {
@@ -246,6 +248,7 @@ void LogParser::handleClientHasLeft(const std::string &currentClient, Time &curr
     {
         endGameSession(currentClient, currentTime);
         p_clientInfo.erase(currentClient);
+        p_queueClients.remove(currentClient);
 
         if (!p_queueClients.empty())
         {
