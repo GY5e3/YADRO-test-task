@@ -1,0 +1,14 @@
+2
+10:00 20:00
+150
+10:15 1 client2
+10:20 1 client3
+10:25 2 client2 1
+10:30 2 client3 2
+10:40 1 client4
+10:45 1 client5
+10:46 1 client6
+10:47 3 client6
+10:48 3 client4
+10:49 3 client5
+10:55 4 client3

@@ -7,7 +7,7 @@ int StoiDecorator::operator()(const std::string &str)
         skipInsignificantZeros++;
     int result = std::stoi(str.substr(skipInsignificantZeros));
     // Проверка сделана для того, чтобы исключать строки вида: *цифры**другие_символы*(342321helloworld);
-    if (std::to_string(result).length() < str.substr(skipInsignificantZeros).length())
+    if (std::to_string(result).length() < str.substr(skipInsignificantZeros).length() || result < 0)
         throw std::invalid_argument("stoi");
     return result;
 }

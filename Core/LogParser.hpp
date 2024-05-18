@@ -62,24 +62,24 @@ private:
     void startGameSession(const std::string &currentClient, int currentGameTable, Time &currentTime);
     void endGameSession(const std::string &currentClient, Time &currentTime);
     void parseHeader();
-    void parseEvent(const std::vector<std::string> &tokens);
+    void parseBody();
+    void parseEvent(const std::vector<std::string> &tokens, Time &previousTime);
     void handleClientHasCome(const std::string &currentClient, Time &currentTime);
     void handleClientTakeGameTable(const std::vector<std::string> &tokens, const std::string &currentClient, Time &currentTime);
     void handleClientIsWaiting(const std::string &currentClient, Time &currentTime);
     void handleClientHasLeft(const std::string &currentClient, Time &currentTime);
 
     std::ifstream p_file;
-    int p_logLinesCounter;
-    int p_gameTablesCount;
-    Time p_workTimeBegin;
-    Time p_workTimeEnd;
-    std::vector<GameTable> p_gameTables;
-    int p_freeGameTablesCount;
-    std::unordered_map<std::string, ClientSession> p_clientInfo;
-    std::queue<std::string> p_queueClients;
 
-    StoiDecorator stoi_decorator;
+    int p_logLinesCounter; // Счётчик строк в логе
+    Time p_workTimeBegin;  // Время открытия компьютерного клуба
+    Time p_workTimeEnd;    // Время закрытия компьютерного клуба
+
+    std::vector<GameTable> p_gameTables; //Перечень всех игровых столов
+    int p_freeGameTablesCount;           //Количество незанятых игровых столов
+    std::unordered_map<std::string, ClientSession> p_clientInfo; //Отображение для клиента и данных о его игровой сессии
+    std::queue<std::string> p_queueClients; // Очередь клиентов, ожидающих освобождения любого игрового стола
+
+    StoiDecorator stoi_decorator; 
     ClientNameParser name_parser;
-
-    
 };

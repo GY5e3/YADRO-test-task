@@ -12,42 +12,20 @@ LogParser::LogParser(const std::string &filename) : p_file(filename), p_logLines
 
 int LogParser::Execute()
 {
-    std::string line;
     try
     {
         parseHeader();
 
-        std::vector<std::string> tokens;
-        std::istringstream iss;
-        std::string token;
+        std::cout << p_workTimeBegin.GetString() << std::endl;
 
-        while (std::getline(p_file, line))
-        {
-
-            p_logLinesCounter++;
-            std::cout << line << std::endl;
-            tokens.clear();
-            iss.str(line);
-            iss.clear();
-
-            while (iss >> token)
-            {
-                tokens.push_back(token);
-            }
-
-            if (tokens.size() < MIN_LOG_LINE_ARGUMENTS || tokens.size() > MAX_LOG_LINE_ARGUMENTS)
-            {
-                throw std::invalid_argument("Incorrect log line format");
-            }
-
-            parseEvent(tokens);
-        }
+        parseBody();
 
         std::vector<std::string> lastClients;
         for (const auto &lastClient : p_clientInfo)
         {
             lastClients.push_back(lastClient.first);
-            endGameSession(lastClient.first, p_workTimeEnd);
+            if(p_clientInfo[lastClient.first].gameTableNumber != GAME_TABLE_IS_UNDEFINED)
+                endGameSession(lastClient.first, p_workTimeEnd);
         }
         while (p_queueClients.size() > 0)
         {
@@ -55,13 +33,12 @@ int LogParser::Execute()
             p_queueClients.pop();
         }
         std::sort(lastClients.begin(), lastClients.end());
+
         for (const auto i : lastClients)
         {
             std::cout << p_workTimeEnd.GetString() + " " << OutgoingEventID::ClientHasLeftForced << " " + i << std::endl;
         }
-
         std::cout << p_workTimeEnd.GetString() << std::endl;
-
         for (size_t i = 0; i < p_gameTables.size(); i++)
         {
             std::cout << i + 1 << " " << p_gameTables[i].GetString() << std::endl;
@@ -95,50 +72,68 @@ void LogParser::endGameSession(const std::string &currentClient, Time &currentTi
 
 void LogParser::parseHeader()
 {
-    try
+    std::string line;
+
+    std::getline(p_file, line);
+    p_logLinesCounter++;
+
+    int gameTablesCount = stoi_decorator(line);
+    p_freeGameTablesCount = gameTablesCount;
+
+    std::getline(p_file, line);
+    p_logLinesCounter++;
+    std::istringstream iss(line);
+    std::string token;
+    std::vector<std::string> tokens;
+    while (iss >> token)
     {
-        std::string line;
-        std::getline(p_file, line);
+        tokens.push_back(token);
+    }
+    if (tokens.size() != 2)
+    {
+        throw std::invalid_argument("Incorrect log line format");
+    }
+    p_workTimeBegin.StringToTime(tokens[0]);
+    p_workTimeEnd.StringToTime(tokens[1]);
+    if (p_workTimeEnd < p_workTimeBegin)
+    {
+        throw std::invalid_argument("WorkTimeEnd can't be less than workTimeBegin");
+    }
 
-        p_logLinesCounter++;
-        p_gameTablesCount = stoi_decorator(line);
-        p_freeGameTablesCount = p_gameTablesCount;
+    std::getline(p_file, line);
+    p_logLinesCounter++;
+    int pricePerHour = stoi_decorator(line);
+    p_gameTables.resize(gameTablesCount, GameTable(pricePerHour));
+}
 
-        std::getline(p_file, line);
+void LogParser::parseBody()
+{
+    std::string line;
+    std::vector<std::string> tokens;
+    std::istringstream iss;
+    std::string token;
+
+    Time currentTime = p_workTimeBegin;
+    while (std::getline(p_file, line))
+    {
         p_logLinesCounter++;
-        std::istringstream iss(line);
-        std::string token;
-        std::vector<std::string> tokens;
+        std::cout << line << std::endl;
+        tokens.clear();
+        iss.str(line);
+        iss.clear();
+
         while (iss >> token)
         {
             tokens.push_back(token);
         }
-        if (tokens.size() != 2)
-        {
-            throw std::invalid_argument("Incorrect log line format");
-        }
-        p_workTimeBegin.StringToTime(tokens[0]);
-        p_workTimeEnd.StringToTime(tokens[1]);
-        if (p_workTimeEnd < p_workTimeBegin)
-        {
-            throw std::invalid_argument("WorkTimeEnd can't be less than workTimeBegin");
-        }
-
-        std::getline(p_file, line);
-        p_logLinesCounter++;
-        int pricePerHour = stoi_decorator(line);
-        p_gameTables.resize(p_gameTablesCount, GameTable(pricePerHour));
-    }
-    catch (const std::invalid_argument &e)
-    {
-        std::cout << "Line " + std::to_string(p_logLinesCounter) + ": " + e.what() << std::endl;
-        return;
+        parseEvent(tokens, currentTime);
     }
 }
 
-void LogParser::parseEvent(const std::vector<std::string> &tokens)
+void LogParser::parseEvent(const std::vector<std::string> &tokens, Time &previousTime)
 {
-    Time previousTime = p_workTimeBegin;
+    if (tokens.size() < MIN_LOG_LINE_ARGUMENTS || tokens.size() > MAX_LOG_LINE_ARGUMENTS)
+        throw std::invalid_argument("Incorrect log line format");
 
     Time currentTime;
     int currentEvent;
@@ -150,9 +145,7 @@ void LogParser::parseEvent(const std::vector<std::string> &tokens)
     currentClient = name_parser(tokens[2]);
 
     if (p_logLinesCounter > LOG_HEADER_END && currentTime < previousTime)
-    {
         throw std::invalid_argument("Unsorted lines in the log");
-    }
 
     switch (currentEvent)
     {
@@ -197,7 +190,7 @@ void LogParser::handleClientTakeGameTable(const std::vector<std::string> &tokens
     }
     int currentGameTable = stoi_decorator(tokens[3]) - 1;
 
-    if (currentGameTable < 0 || currentGameTable >= p_gameTablesCount)
+    if (currentGameTable < 0 || currentGameTable >= p_gameTables.size())
     {
         throw std::invalid_argument("Table " + std::to_string(currentGameTable + 1) + " does not exist");
     }
@@ -230,7 +223,7 @@ void LogParser::handleClientIsWaiting(const std::string &currentClient, Time &cu
         std::cout << currentTime.GetString() + " " << OutgoingEventID::EventError << " ICanWaitNoLonger!" << std::endl;
         return;
     }
-    if (p_queueClients.size() > p_gameTablesCount)
+    if (p_queueClients.size() > p_gameTables.size())
     {
         std::cout << currentTime.GetString() + " " << OutgoingEventID::ClientHasLeftForced << " " + currentClient << std::endl;
         p_clientInfo.erase(currentClient);
@@ -246,17 +239,21 @@ void LogParser::handleClientHasLeft(const std::string &currentClient, Time &curr
         std::cout << currentTime.GetString() + " " << OutgoingEventID::EventError << " ClientUnknown" << std::endl;
         return;
     }
+
     int currentGameTable = p_clientInfo[currentClient].gameTableNumber;
 
-    endGameSession(currentClient, currentTime);
-    p_clientInfo.erase(currentClient);
-
-    if (!p_queueClients.empty())
+    if (currentGameTable != GAME_TABLE_IS_UNDEFINED)
     {
-        std::string nextClient = p_queueClients.front();
-        p_queueClients.pop();
+        endGameSession(currentClient, currentTime);
+        p_clientInfo.erase(currentClient);
 
-        startGameSession(nextClient, currentGameTable, currentTime);
-        std::cout << currentTime.GetString() + " " << OutgoingEventID::ClientFromQueueTakeGameTable << " " + nextClient + " " + std::to_string(currentGameTable + 1) << std::endl;
+        if (!p_queueClients.empty())
+        {
+            std::string nextClient = p_queueClients.front();
+            p_queueClients.pop();
+
+            startGameSession(nextClient, currentGameTable, currentTime);
+            std::cout << currentTime.GetString() + " " << OutgoingEventID::ClientFromQueueTakeGameTable << " " + nextClient + " " + std::to_string(currentGameTable + 1) << std::endl;
+        }
     }
 }
